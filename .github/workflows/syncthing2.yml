@@ -1,4 +1,4 @@
-name: Make Syncthing run files
+name: Make Syncthing2 run files
 
 on:
   workflow_dispatch:
