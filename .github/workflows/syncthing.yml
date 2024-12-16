@@ -99,9 +99,9 @@ jobs:
 
       - name: Create self-extracting archives
         run: |
-          mv -f x86_64 makeself
-          mv -f aarch64_cortex-a53 makeself
           cd makeself
+          mv ../x86_64 .
+          mv ../aarch64_cortex-a53 .
           ipk_file=$(ls x86_64/*.ipk)
           appversion=$(basename "$ipk_file" | grep -oP '\\d+\\.\\d+\\.\\d+')
           echo "APP_VERSION=$appversion" >> $GITHUB_ENV
