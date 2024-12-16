@@ -125,7 +125,7 @@ jobs:
         with:
           tag_name: ${{ env.APP_VERSION }}
           name: ${{ env.RELEASE_NAME }}
-          body: "![Github](https://img.shields.io/badge/Syncthing.run-123456?logo=github&logoColor=fff&labelColor=blue&style=for-the-badge)"
+          body: "![Github](https://img.shields.io/badge/Syncthing.run-123456?logo=github&logoColor=fff&labelColor=yellow&style=for-the-badge)"
           files: makeself/*.run
           token: ${{ secrets.GITHUB_TOKEN }}
         env:
