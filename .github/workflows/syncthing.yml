@@ -1,9 +1,3 @@
-#=================================================
-# https://github.com/wukongdaily/RunFilesBuilder
-# Description: Build Syncthing RunFiles using GitHub Actions
-# License: MIT
-# Author: Modified by ChatGPT
-#=================================================
 name: Make Syncthing run files
 
 on:
@@ -14,12 +8,11 @@ on:
       package_version:
         description: '这里是包版本'
         required: false
-        default: 'packages-24.10'
+        default: 'packages-24.10'  
 
 jobs:
   build:
-    if: ${{ github.repository == 'wukongdaily/RunFilesBuilder' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-22.04 
 
     steps:
       - name: Checkout repository
@@ -31,97 +24,73 @@ jobs:
 
       - name: Create directories for x86_64 and a53 and set PACKAGE_VERSION
         run: |
-          mkdir -p x86_64/depends aarch64_cortex-a53/depends
+          mkdir -p x86_64/depends a53/depends
           package_version="${{ github.event.inputs.package_version }}"
           if [ -z "$package_version" ]; then
             package_version="packages-24.10"
           fi
           echo "PACKAGE_VERSION=$package_version" >> $GITHUB_ENV
 
-      - name: Download Syncthing ipk files for x86_64 and aarch64_cortex-a53
+      - name: Download ipk files for x86_64 and a53
         run: |
           echo "Get PACKAGE_VERSION=$PACKAGE_VERSION"
-
-          # 文件前缀
-          FILE_PREFIXES=("syncthing")
-
-          # 下载 x86_64 Syncthing
-          ARCH="x86_64"
-          BASE_URL="https://dl.openwrt.ai/$PACKAGE_VERSION/$ARCH/packages/"
-          echo "Fetching directory page from $BASE_URL"
-          wget -qO- "$BASE_URL" | \
+          
+          FILE_PREFIXES=("syncthing" "luci-app-syncthing")
+          
+          # 下载 x86_64 的 syncthing
+          BASE_URL_X86_PACKAGES="https://dl.openwrt.ai/$PACKAGE_VERSION/x86_64/packages/"
+          wget -qO- "$BASE_URL_X86_PACKAGES" | \
           while IFS= read -r LINE; do
-              for PREFIX in "${FILE_PREFIXES[@]}"; do
-                  if [[ "$LINE" == *"$PREFIX"* ]]; then
-                      FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
-                      if [[ -z "$FILE" ]]; then
-                          continue
-                      fi
-                      FILE_URL="$BASE_URL$FILE"
+              if [[ "$LINE" == *"syncthing_"* ]]; then
+                  FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
+                  if [[ ! -z "$FILE" ]]; then
+                      FILE_URL="${BASE_URL_X86_PACKAGES}${FILE}"
                       echo "Found file: $FILE_URL"
-                      curl -L --fail "$FILE_URL" -o "$ARCH/depends/$(basename $FILE_URL)" -#
+                      curl -L --fail "$FILE_URL" -o "x86_64/depends/$(basename $FILE_URL)" -#
                   fi
-              done
+              fi
           done
 
-          # 下载 aarch64_cortex-a53 Syncthing
-          ARCH="aarch64_cortex-a53"
-          BASE_URL="https://dl.openwrt.ai/$PACKAGE_VERSION/$ARCH/packages/"
-          echo "Fetching directory page from $BASE_URL"
-          wget -qO- "$BASE_URL" | \
+          # 下载 x86_64 的 luci-app-syncthing
+          BASE_URL_X86_KIDDIN9="https://dl.openwrt.ai/$PACKAGE_VERSION/x86_64/kiddin9/"
+          wget -qO- "$BASE_URL_X86_KIDDIN9" | \
           while IFS= read -r LINE; do
-              for PREFIX in "${FILE_PREFIXES[@]}"; do
-                  if [[ "$LINE" == *"$PREFIX"* ]]; then
-                      FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
-                      if [[ -z "$FILE" ]]; then
-                          continue
-                      fi
-                      FILE_URL="$BASE_URL$FILE"
+              if [[ "$LINE" == *"luci-app-syncthing"* ]]; then
+                  FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
+                  if [[ ! -z "$FILE" ]]; then
+                      FILE_URL="${BASE_URL_X86_KIDDIN9}${FILE}"
                       echo "Found file: $FILE_URL"
-                      curl -L --fail "$FILE_URL" -o "$ARCH/depends/$(basename $FILE_URL)" -#
+                      curl -L --fail "$FILE_URL" -o "x86_64/$(basename $FILE_URL)" -#
                   fi
-              done
+              fi
           done
 
-          # 文件前缀
-          FILE_PREFIXES=("luci-app-syncthing")
-
-          # 下载 x86_64 Luci Syncthing
-          ARCH="x86_64"
-          BASE_URL="https://dl.openwrt.ai/$PACKAGE_VERSION/$ARCH/kiddin9/"
-          echo "Fetching directory page from $BASE_URL"
-          wget -qO- "$BASE_URL" | \
+          # 下载 a53 的 syncthing
+          BASE_URL_A53_PACKAGES="https://dl.openwrt.ai/$PACKAGE_VERSION/aarch64_cortex-a53/packages/"
+          wget -qO- "$BASE_URL_A53_PACKAGES" | \
           while IFS= read -r LINE; do
-              for PREFIX in "${FILE_PREFIXES[@]}"; do
-                  if [[ "$LINE" == *"$PREFIX"* ]]; then
-                      FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
-                      if [[ -z "$FILE" ]]; then
-                          continue
-                      fi
-                      FILE_URL="$BASE_URL$FILE"
+              if [[ "$LINE" == *"syncthing_"* ]]; then
+                  FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
+                  if [[ ! -z "$FILE" ]]; then
+                      FILE_URL="${BASE_URL_A53_PACKAGES}${FILE}"
                       echo "Found file: $FILE_URL"
-                      curl -L --fail "$FILE_URL" -o "$ARCH/$(basename $FILE_URL)" -#
+                      curl -L --fail "$FILE_URL" -o "a53/depends/$(basename $FILE_URL)" -#
                   fi
-              done
+              fi
           done
 
-          # 下载 aarch64_cortex-a53 Luci Syncthing
-          ARCH="aarch64_cortex-a53"
-          BASE_URL="https://dl.openwrt.ai/$PACKAGE_VERSION/$ARCH/kiddin9/"
-          echo "Fetching directory page from $BASE_URL"
-          wget -qO- "$BASE_URL" | \
+          # 下载 a53 的 luci-app-syncthing
+          BASE_URL_A53_KIDDIN9="https://dl.openwrt.ai/$PACKAGE_VERSION/aarch64_cortex-a53/kiddin9/"
+          wget -qO- "$BASE_URL_A53_KIDDIN9" | \
           while IFS= read -r LINE; do
-              for PREFIX in "${FILE_PREFIXES[@]}"; do
-                  if [[ "$LINE" == *"$PREFIX"* ]]; then
-                      FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
-                      if [[ -z "$FILE" ]]; then
-                          continue
-                      fi
-                      FILE_URL="$BASE_URL$FILE"
+              if [[ "$LINE" == *"luci-app-syncthing"* ]]; then
+                  FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
+                  if [[ ! -z "$FILE" ]]; then
+                      FILE_URL="${BASE_URL_A53_KIDDIN9}${FILE}"
                       echo "Found file: $FILE_URL"
-                      curl -L --fail "$FILE_URL" -o "$ARCH/$(basename $FILE_URL)" -#
+                      curl -L --fail "$FILE_URL" -o "a53/$(basename $FILE_URL)" -#
                   fi
-              done
+              fi
           done
 
       - name: List depends ipks
@@ -129,33 +98,33 @@ jobs:
           echo "List x86 depends ipk files"
           ls -lh x86_64/depends/
           echo "List a53 depends ipk files"
-          ls -lh aarch64_cortex-a53/depends/
+          ls -lh a53/depends/
 
-      - name: Create install.sh
+      - name: Create install.sh 
         run: |
-          echo -e "#!/bin/sh\n\nopkg update\nif [ \$? -ne 0 ]; then\n    echo \"update failed\"\n    exit 1\nfi\nopkg install depends/*.ipk --force-depends\nopkg install *.ipk --force-depends" > x86_64/install.sh
-          chmod +x x86_64/install.sh
-          cp x86_64/install.sh aarch64_cortex-a53/
-
+            echo -e "#!/bin/sh\n\nopkg update\nif [ \$? -ne 0 ]; then\n    echo \"update failed\"\n    exit 1\nfi\nopkg install depends/*.ipk --force-depends\nopkg install *.ipk --force-depends" > x86_64/install.sh
+            chmod +x x86_64/install.sh
+            cp x86_64/install.sh a53/
+  
       - name: Create self-extracting archives
         run: |
-          cd makeself
-          mv ../x86_64 .
-          mv ../aarch64_cortex-a53 .
-          ipk_file=$(ls x86_64/*.ipk)
-          appversion=$(basename "$ipk_file" | grep -oP '\\d+\\.\\d+\\.\\d+')
-          echo "APP_VERSION=$appversion" >> $GITHUB_ENV
-          release_name=$(TZ="Asia/Shanghai" date +'%Y-%m-%d %H:%M Build')
-          echo "RELEASE_NAME=$release_name" >> $GITHUB_ENV
-          ./makeself.sh x86_64/ syncthing_x86_64_$appversion.run "Syncthing by GitHub Action" ./install.sh
-          ./makeself.sh aarch64_cortex-a53/ syncthing_aarch64_cortex-a53_$appversion.run "Syncthing by GitHub Action" ./install.sh
-
+            mv -f x86_64 makeself
+            mv -f a53 makeself
+            cd makeself
+            ipk_file=$(ls x86_64/*.ipk)
+            appversion=$(basename "$ipk_file" | grep -oP '\d+\.\d+\.\d+')
+            echo "APP_VERSION=$appversion" >> $GITHUB_ENV
+            release_name=$(TZ="Asia/Shanghai" date +'%Y-%m-%d %H:%M Build')
+            echo "RELEASE_NAME=$release_name" >> $GITHUB_ENV
+            ./makeself.sh x86_64/ syncthing_x86_64_$appversion.run "by github action" ./install.sh
+            ./makeself.sh a53/ syncthing_aarch64_cortex-a53_$appversion.run "by github action" ./install.sh
+      
       - name: Upload all .run files to GitHub Release
         uses: softprops/action-gh-release@v2.1.0
         with:
           tag_name: ${{ env.APP_VERSION }}
           name: ${{ env.RELEASE_NAME }}
-          body: "![Github](https://img.shields.io/badge/Syncthing.run-123456?logo=github&logoColor=fff&labelColor=blue&style=for-the-badge) [![Github](https://img.shields.io/badge/\u56FD\u5185\u52A0\u901F\u7AD9\u4E0B\u8F7D-FC7C0D?logo=github&logoColor=fff&labelColor=000&style=for-the-badge)](https://wkdaily.cpolar.top/archives/1) ![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/wukongdaily/RunFilesBuilder/${{ env.APP_VERSION }}/total?style=for-the-badge&labelColor=black&color=%2325c2a0)"
+          body: "![Github](https://img.shields.io/badge/Syncthing.run-123456?logo=github&logoColor=fff&labelColor=blue&style=for-the-badge)"
           files: makeself/*.run
           token: ${{ secrets.GITHUB_TOKEN }}
         env:
