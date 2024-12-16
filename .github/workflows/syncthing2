@@ -1,0 +1,132 @@
+name: Make Syncthing run files
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_version:
+        description: '这里是包版本'
+        required: false
+        default: 'packages-24.10'  
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04 
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Clone makeself repo
+        run: |
+          git clone https://github.com/megastep/makeself.git
+
+      - name: Create directories for x86_64 and a53 and set PACKAGE_VERSION
+        run: |
+          mkdir -p x86_64/depends a53/depends
+          package_version="${{ github.event.inputs.package_version }}"
+          if [ -z "$package_version" ]; then
+            package_version="packages-24.10"
+          fi
+          echo "PACKAGE_VERSION=$package_version" >> $GITHUB_ENV
+
+      - name: Download syncthing and luci-app-syncthing
+        run: |
+          echo "Get PACKAGE_VERSION=$PACKAGE_VERSION"
+          
+          # 下载 x86_64 版本
+          # 下载主程序
+          BASE_URL_X86_MAIN="https://dl.openwrt.ai/$PACKAGE_VERSION/x86_64/packages/"
+          wget -qO- "$BASE_URL_X86_MAIN" | \
+          while IFS= read -r LINE; do
+              if [[ "$LINE" == *"syncthing"* ]] && [[ "$LINE" != *"luci"* ]]; then
+                  FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
+                  if [[ ! -z "$FILE" ]]; then
+                      FILE_URL="${BASE_URL_X86_MAIN}${FILE}"
+                      echo "Found syncthing: $FILE_URL"
+                      curl -L --fail "$FILE_URL" -o "x86_64/depends/$(basename $FILE_URL)" -#
+                  fi
+              fi
+          done
+
+          # 下载 luci 界面
+          BASE_URL_X86_LUCI="https://dl.openwrt.ai/$PACKAGE_VERSION/x86_64/kiddin9/"
+          wget -qO- "$BASE_URL_X86_LUCI" | \
+          while IFS= read -r LINE; do
+              if [[ "$LINE" == *"luci-app-syncthing"* ]]; then
+                  FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
+                  if [[ ! -z "$FILE" ]]; then
+                      FILE_URL="${BASE_URL_X86_LUCI}${FILE}"
+                      echo "Found luci-app: $FILE_URL"
+                      curl -L --fail "$FILE_URL" -o "x86_64/$(basename $FILE_URL)" -#
+                  fi
+              fi
+          done
+
+          # 下载 A53 版本
+          # 下载主程序
+          BASE_URL_A53_MAIN="https://dl.openwrt.ai/$PACKAGE_VERSION/aarch64_cortex-a53/packages/"
+          wget -qO- "$BASE_URL_A53_MAIN" | \
+          while IFS= read -r LINE; do
+              if [[ "$LINE" == *"syncthing"* ]] && [[ "$LINE" != *"luci"* ]]; then
+                  FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
+                  if [[ ! -z "$FILE" ]]; then
+                      FILE_URL="${BASE_URL_A53_MAIN}${FILE}"
+                      echo "Found syncthing: $FILE_URL"
+                      curl -L --fail "$FILE_URL" -o "a53/depends/$(basename $FILE_URL)" -#
+                  fi
+              fi
+          done
+
+          # 下载 luci 界面
+          BASE_URL_A53_LUCI="https://dl.openwrt.ai/$PACKAGE_VERSION/aarch64_cortex-a53/kiddin9/"
+          wget -qO- "$BASE_URL_A53_LUCI" | \
+          while IFS= read -r LINE; do
+              if [[ "$LINE" == *"luci-app-syncthing"* ]]; then
+                  FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
+                  if [[ ! -z "$FILE" ]]; then
+                      FILE_URL="${BASE_URL_A53_LUCI}${FILE}"
+                      echo "Found luci-app: $FILE_URL"
+                      curl -L --fail "$FILE_URL" -o "a53/$(basename $FILE_URL)" -#
+                  fi
+              fi
+          done
+
+      - name: List downloaded files
+        run: |
+          echo "List x86 files:"
+          ls -lh x86_64/depends/
+          ls -lh x86_64/
+          echo "List a53 files:"
+          ls -lh a53/depends/
+          ls -lh a53/
+
+      - name: Create install.sh 
+        run: |
+            echo -e "#!/bin/sh\n\nopkg update\nif [ \$? -ne 0 ]; then\n    echo \"update failed\"\n    exit 1\nfi\nopkg install depends/*.ipk --force-depends\nopkg install *.ipk --force-depends" > x86_64/install.sh
+            chmod +x x86_64/install.sh
+            cp x86_64/install.sh a53/
+  
+      - name: Create self-extracting archives
+        run: |
+            mv -f x86_64 makeself
+            mv -f a53 makeself
+            cd makeself
+            # 获取 syncthing 的版本号
+            syncthing_ipk=$(ls x86_64/depends/syncthing*.ipk)
+            appversion=$(basename "$syncthing_ipk" | grep -oP '\d+\.\d+\.\d+(-\d+)?')
+            echo "APP_VERSION=$appversion" >> $GITHUB_ENV
+            release_name=$(TZ="Asia/Shanghai" date +'%Y-%m-%d %H:%M Build')
+            echo "RELEASE_NAME=$release_name" >> $GITHUB_ENV
+            ./makeself.sh x86_64/ syncthing_x86_64_$appversion.run "by github action" ./install.sh
+            ./makeself.sh a53/ syncthing_aarch64_cortex-a53_$appversion.run "by github action" ./install.sh
+      
+      - name: Upload all .run files to GitHub Release
+        uses: softprops/action-gh-release@v2.1.0
+        with:
+          tag_name: ${{ env.APP_VERSION }}
+          name: ${{ env.RELEASE_NAME }}
+          body: "![Github](https://img.shields.io/badge/Syncthing.run-123456?logo=github&logoColor=fff&labelColor=blue&style=for-the-badge)"
+          files: makeself/*.run
+          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
