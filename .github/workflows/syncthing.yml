@@ -1,0 +1,122 @@
+#=================================================
+# https://github.com/wukongdaily/RunFilesBuilder
+# Description: Build Syncthing RunFiles using GitHub Actions
+# License: MIT
+# Author: Modified by ChatGPT
+#=================================================
+name: Make Syncthing run files
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      package_version:
+        description: '这里是包版本'
+        required: false
+        default: 'packages-24.10'
+
+jobs:
+  build:
+    if: ${{ github.repository == 'wukongdaily/RunFilesBuilder' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Clone makeself repo
+        run: |
+          git clone https://github.com/megastep/makeself.git
+
+      - name: Create directories for x86_64 and a53 and set PACKAGE_VERSION
+        run: |
+          mkdir -p x86_64/depends a53/depends
+          package_version="${{ github.event.inputs.package_version }}"
+          if [ -z "$package_version" ]; then
+            package_version="packages-24.10"
+          fi
+          echo "PACKAGE_VERSION=$package_version" >> $GITHUB_ENV
+
+      - name: Download Syncthing ipk files for x86_64 and a53
+        run: |
+          echo "Get PACKAGE_VERSION=$PACKAGE_VERSION"
+
+          FILE_PREFIXES=("syncthing" "luci-app-syncthing")
+
+          for ARCH in x86_64 aarch64_cortex-a53; do
+            BASE_URL="https://dl.openwrt.ai/$PACKAGE_VERSION/$ARCH/packages/"
+            echo "Fetching directory page from $BASE_URL"
+            wget -qO- "$BASE_URL" | \
+            while IFS= read -r LINE; do
+                for PREFIX in "${FILE_PREFIXES[@]}"; do
+                    if [[ "$LINE" == *"$PREFIX"* ]]; then
+                        FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
+                        if [[ -z "$FILE" ]]; then
+                            continue
+                        fi
+                        FILE_URL="$BASE_URL$FILE"
+                        echo "Found file: $FILE_URL"
+                        curl -L --fail "$FILE_URL" -o "$ARCH/depends/$(basename $FILE_URL)" -#
+                    fi
+                done
+            done
+          done
+
+          for ARCH in x86_64 aarch64_cortex-a53; do
+            BASE_URL="https://dl.openwrt.ai/$PACKAGE_VERSION/$ARCH/kiddin9/"
+            echo "Fetching directory page from $BASE_URL"
+            wget -qO- "$BASE_URL" | \
+            while IFS= read -r LINE; do
+                for PREFIX in "${FILE_PREFIXES[@]}"; do
+                    if [[ "$LINE" == *"$PREFIX"* ]]; then
+                        FILE=$(echo "$LINE" | grep -oP 'href="\K[^"]*')
+                        if [[ -z "$FILE" ]]; then
+                            continue
+                        fi
+                        FILE_URL="$BASE_URL$FILE"
+                        echo "Found file: $FILE_URL"
+                        curl -L --fail "$FILE_URL" -o "$ARCH/depends/$(basename $FILE_URL)" -#
+                    fi
+                done
+            done
+          done
+
+      - name: List depends ipks
+        run: |
+          echo "List x86 depends ipk files"
+          ls -lh x86_64/depends/
+          echo "List a53 depends ipk files"
+          ls -lh aarch64_cortex-a53/depends/
+          mv x86_64/depends/luci-app-syncthing*.ipk x86_64
+          mv aarch64_cortex-a53/depends/luci-app-syncthing*.ipk aarch64_cortex-a53
+
+      - name: Create install.sh
+        run: |
+          echo -e "#!/bin/sh\n\nopkg update\nif [ \$? -ne 0 ]; then\n    echo \"update failed\"\n    exit 1\nfi\nopkg install depends/*.ipk --force-depends\nopkg install *.ipk --force-depends" > x86_64/install.sh
+          chmod +x x86_64/install.sh
+          cp x86_64/install.sh aarch64_cortex-a53/
+
+      - name: Create self-extracting archives
+        run: |
+          mv -f x86_64 makeself
+          mv -f aarch64_cortex-a53 makeself
+          cd makeself
+          ipk_file=$(ls x86_64/*.ipk)
+          appversion=$(basename "$ipk_file" | grep -oP '\d+\.\d+\.\d+')
+          echo "APP_VERSION=$appversion" >> $GITHUB_ENV
+          release_name=$(TZ="Asia/Shanghai" date +'%Y-%m-%d %H:%M Build')
+          echo "RELEASE_NAME=$release_name" >> $GITHUB_ENV
+          ./makeself.sh x86_64/ syncthing_x86_64_$appversion.run "Syncthing by GitHub Action" ./install.sh
+          ./makeself.sh aarch64_cortex-a53/ syncthing_aarch64_cortex-a53_$appversion.run "Syncthing by GitHub Action" ./install.sh
+
+      - name: Upload all .run files to GitHub Release
+        uses: softprops/action-gh-release@v2.1.0
+        with:
+          tag_name: ${{ env.APP_VERSION }}
+          name: ${{ env.RELEASE_NAME }}
+          body: "![Github](https://img.shields.io/badge/Syncthing.run-123456?logo=github&logoColor=fff&labelColor=blue&style=for-the-badge) [![Github](https://img.shields.io/badge/国内加速站下载-FC7C0D?logo=github&logoColor=fff&labelColor=000&style=for-the-badge)](https://wkdaily.cpolar.top/archives/1) ![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/wukongdaily/RunFilesBuilder/${{ env.APP_VERSION }}/total?style=for-the-badge&labelColor=black&color=%2325c2a0)"
+          files: makeself/*.run
+          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
