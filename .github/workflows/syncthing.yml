@@ -111,8 +111,9 @@ jobs:
             mv -f x86_64 makeself
             mv -f a53 makeself
             cd makeself
-            ipk_file=$(ls x86_64/*.ipk)
-            appversion=$(basename "$ipk_file" | grep -oP '\d+\.\d+\.\d+')
+            # 修改这里,专门获取 syncthing 主程序的版本号
+            syncthing_ipk=$(ls x86_64/depends/syncthing_*.ipk | grep -v "luci")
+            appversion=$(basename "$syncthing_ipk" | grep -oP 'syncthing_\K[0-9.]+(?=[-+])')
             echo "APP_VERSION=$appversion" >> $GITHUB_ENV
             release_name=$(TZ="Asia/Shanghai" date +'%Y-%m-%d %H:%M Build')
             echo "RELEASE_NAME=$release_name" >> $GITHUB_ENV
