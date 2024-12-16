@@ -31,7 +31,7 @@ jobs:
 
       - name: Create directories for x86_64 and a53 and set PACKAGE_VERSION
         run: |
-          mkdir -p x86_64/depends a53/depends
+          mkdir -p x86_64/depends aarch64_cortex-a53/depends
           package_version="${{ github.event.inputs.package_version }}"
           if [ -z "$package_version" ]; then
             package_version="packages-24.10"
@@ -103,7 +103,7 @@ jobs:
           mv -f aarch64_cortex-a53 makeself
           cd makeself
           ipk_file=$(ls x86_64/*.ipk)
-          appversion=$(basename "$ipk_file" | grep -oP '\d+\.\d+\.\d+')
+          appversion=$(basename "$ipk_file" | grep -oP '\\d+\\.\\d+\\.\\d+')
           echo "APP_VERSION=$appversion" >> $GITHUB_ENV
           release_name=$(TZ="Asia/Shanghai" date +'%Y-%m-%d %H:%M Build')
           echo "RELEASE_NAME=$release_name" >> $GITHUB_ENV
